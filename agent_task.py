@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import threading
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import openai
 
 logger = logging.getLogger(__name__)
@@ -11,12 +11,10 @@ logger = logging.getLogger(__name__)
 API_BASE_URL = os.getenv("AGENT_TASK_BASE_URL", "http://127.0.0.1:20128/v1")
 API_KEY = os.getenv("AGENT_TASK_API_KEY", "sk-44e8bc92d1c676d1e434e7f827ee784841f4")
 
-# The 3 target models
-MODELS = {
-    "agent1": "ag/claude-opus-4-6-thinking",
-    "agent2": "ag/gemini-3-flash-agent",
-    "agent3": "ag/claude-sonnet-4-6"
-}
+# Fallback default models if user doesn't specify any
+DEFAULT_MODEL1 = os.getenv("AGENT_TASK_MODEL1", "ag/claude-opus-4-6-thinking")
+DEFAULT_MODEL2 = os.getenv("AGENT_TASK_MODEL2", "ag/gemini-3-flash-agent")
+DEFAULT_MODEL3 = os.getenv("AGENT_TASK_MODEL3", "ag/claude-sonnet-4-6")
 
 def get_openai_client():
     return openai.OpenAI(
@@ -41,7 +39,12 @@ def run_agent_query(model_id: str, system_prompt: str, user_prompt: str) -> str:
         logger.error(f"Error querying model {model_id}: {e}")
         return f"Error: Gagal mendapatkan respon dari model {model_id}. Detail: {str(e)}"
 
-def agent_task(task: str) -> str:
+def agent_task(
+    task: str,
+    model1: Optional[str] = None,
+    model2: Optional[str] = None,
+    model3: Optional[str] = None
+) -> str:
     """
     Core function for the agent_task tool.
     1. Query Agent 1, 2, and 3 in parallel with the user's task.
@@ -49,6 +52,16 @@ def agent_task(task: str) -> str:
     3. Run a mutual critique round.
     4. Compile the final optimized consensus output.
     """
+    m1 = model1 or DEFAULT_MODEL1
+    m2 = model2 or DEFAULT_MODEL2
+    m3 = model3 or DEFAULT_MODEL3
+
+    active_models = {
+        "agent1": m1,
+        "agent2": m2,
+        "agent3": m3
+    }
+
     results = {}
     threads = []
 
@@ -56,14 +69,15 @@ def agent_task(task: str) -> str:
     # PHASE 1: Gather Initial Answers (Parallel)
     # -------------------------------------------------------------
     base_system = (
-        "Kamu adalah AI Agent ahli. Berikan jawaban terbaik, paling akurat, "
-        "dan detail untuk tugas berikut. Jawab dalam bahasa Indonesia."
+        "Kamu adalah pakar domain tingkat dunia yang sangat cerdas, objektif, dan teliti. "
+        "Tugasmu adalah memberikan analisis awal yang mendalam, komprehensif, "
+        "dan sangat akurat untuk tugas berikut. Jawab dalam bahasa Indonesia dengan struktur yang baik."
     )
 
     def worker_phase1(agent_key: str, model_name: str):
         results[agent_key] = run_agent_query(model_name, base_system, task)
 
-    for key, model in MODELS.items():
+    for key, model in active_models.items():
         t = threading.Thread(target=worker_phase1, args=(key, model))
         threads.append(t)
         t.start()
@@ -81,20 +95,22 @@ def agent_task(task: str) -> str:
         other_drafts = ""
         for k, v in results.items():
             if k != critic_key:
-                other_drafts += f"=== DRAFT DARI {k.upper()} ===\n{v}\n\n"
+                other_drafts += f"=== DRAFT DARI {k.upper()} (Model: {active_models[k]}) ===\n{v}\n\n"
 
         critique_prompt = (
-            f"Tugas Awal: {task}\n\n"
+            f"Tugas Awal yang harus diselesaikan: {task}\n\n"
             f"Berikut adalah draf jawaban dari agen-agen lain:\n\n{other_drafts}"
-            f"Tugas kamu sekarang adalah menganalisis draf mereka secara kritis. "
-            f"Tunjukkan bagian mana yang kurang tepat, bagian mana yang perlu ditambahkan, "
-            f"dan berikan rekomendasi perbaikan yang konkret. Jawab dengan ringkas dan objektif dalam bahasa Indonesia."
+            f"Tugas kamu sekarang adalah menganalisis draf mereka secara kritis dan tajam. "
+            f"Tunjukkan celah faktual, ketidakkonsistenan logika, hal-hal yang terlewatkan (omissions), "
+            f"atau penjelasan yang kurang maksimal. Berikan rekomendasi spesifik dan langkah konkret "
+            f"untuk memperbaiki dan menyempurnakan jawaban tersebut agar meyakinkan. "
+            f"Jawab dengan lugas, objektif, dan profesional dalam bahasa Indonesia."
         )
         
-        critique_system = f"Kamu adalah analis kritis untuk model {MODELS[critic_key]}."
+        critique_system = f"Kamu adalah evaluator kritis utama untuk model {critic_model}."
         critiques[critic_key] = run_agent_query(critic_model, critique_system, critique_prompt)
 
-    for key, model in MODELS.items():
+    for key, model in active_models.items():
         t = threading.Thread(target=worker_critique, args=(key, model))
         critique_threads.append(t)
         t.start()
@@ -105,44 +121,49 @@ def agent_task(task: str) -> str:
     # -------------------------------------------------------------
     # PHASE 3: Synthesis & Consensus Generation
     # -------------------------------------------------------------
-    synthesis_model = MODELS["agent1"]
+    # We use agent1 (or fall back to m1) for the final synthesis & consensus building.
+    synthesis_model = m1
     
-    compilation = "=== DRAF AWAL ===\n"
+    compilation = "=== DRAF AWAL AGEN ===\n"
     for k, v in results.items():
-        compilation += f"\n--- {k.upper()} DRAFT ---\n{v}\n"
+        compilation += f"\n--- {k.upper()} DRAFT (Model: {active_models[k]}) ---\n{v}\n"
         
-    compilation += "\n\n=== HASIL KRITIK & EVALUASI SALING SILANG ===\n"
+    compilation += "\n\n=== MASUKAN KRITIK & REKOMENDASI SALING SILANG ===\n"
     for k, v in critiques.items():
-        compilation += f"\n--- EVALUASI DARI {k.upper()} ---\n{v}\n"
+        compilation += f"\n--- KRITIK DARI {k.upper()} (Model: {active_models[k]}) ---\n{v}\n"
 
     synthesis_prompt = (
-        f"Tugas Awal: {task}\n\n"
-        f"Kamu diberikan kumpulan draf awal dan kritik saling silang dari 3 agen berikut:\n\n"
+        f"Tugas Utama: {task}\n\n"
+        f"Kamu diberikan draf awal beserta kritik & evaluasi dari 3 agen ahli berikut:\n\n"
         f"{compilation}\n\n"
-        f"Tugas Akhir Kamu:\n"
-        f"Gabungkan, perbaiki, dan optimalkan semua hasil kerja di atas menjadi satu jawaban akhir yang sempurna, "
-        f"padat, akurat, dan memiliki kualitas terbaik sesuai dengan masukan kritik dari para agen. "
-        f"Tulis jawaban akhir secara terstruktur dalam bahasa Indonesia yang baik."
+        f"TUGAS AKHIR KAMU:\n"
+        f"1. Gabungkan kelebihan dari ketiga draf tersebut.\n"
+        f"2. Koreksi semua kesalahan atau bagian yang kurang tepat berdasarkan poin-poin kritik yang masuk.\n"
+        f"3. Tambahkan penjelasan baru jika ada celah informasi yang ditemukan dalam proses kritik.\n"
+        f"4. Hasilkan satu jawaban akhir konsensus yang sempurna, sangat komprehensif, logis, "
+        f"terstruktur rapi, dan memiliki tingkat keandalan yang sangat tinggi (sangat meyakinkan).\n\n"
+        f"Tulis jawaban akhir secara mendalam dan profesional dalam bahasa Indonesia."
     )
 
     synthesis_system = (
-        "Kamu adalah Master Aggregator. Tugasmu menyatukan berbagai draf "
-        "dan masukan kritik menjadi satu kesimpulan konsensus akhir berkualitas tinggi."
+        "Kamu adalah Master Aggregator & Chief Editor. Tugasmu adalah mengintegrasikan draf "
+        "dan masukan kritik secara objektif untuk menghasilkan output konsensus final dengan kualitas terbaik."
     )
 
     final_consensus = run_agent_query(synthesis_model, synthesis_system, synthesis_prompt)
 
+    # Format output for the user
     formatted_output = (
         f"### 🤖 PROSES MULTI-AGENT COLLABORATION (`agent_task`)\n\n"
-        f"#### 1️⃣ Draf Awal:\n"
-        f"*   **Agent 1 (Opus Thinking):** Selesai\n"
-        f"*   **Agent 2 (Gemini Flash):** Selesai\n"
-        f"*   **Agent 3 (Sonnet 4.6):** Selesai\n\n"
-        f"#### 2️⃣ Hasil Saling Kritik:\n"
-        f"*   *Agent 1 mengoreksi draf Agent 2 & 3.*\n"
-        f"*   *Agent 2 memberikan masukan untuk draf Agent 1 & 3.*\n"
-        f"*   *Agent 3 mengevaluasi draf Agent 1 & 2.*\n\n"
-        f"#### 3️⃣ Konsensus Jawaban Akhir (Optimal):\n\n"
+        f"#### 1️⃣ Konfigurasi Model:\n"
+        f"*   **Agent 1:** `{m1}`\n"
+        f"*   **Agent 2:** `{m2}`\n"
+        f"*   **Agent 3:** `{m3}`\n\n"
+        f"#### 2️⃣ Status Eksekusi:\n"
+        f"*   **Fase 1 (Draf Paralel):** Selesai\n"
+        f"*   **Fase 2 (Saling Kritik):** Selesai\n"
+        f"*   **Fase 3 (Sintesis Konsensus):** Selesai\n\n"
+        f"#### 3️⃣ Konsensus Jawaban Akhir (Optimal & Meyyakinkan):\n\n"
         f"{final_consensus}"
     )
 
