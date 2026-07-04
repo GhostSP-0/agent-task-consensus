@@ -29,7 +29,7 @@ Agent Task Consensus adalah sistem multi-agent di mana tiga agen AI berkolaboras
    
    # Konfigurasi API Anda
    export AGENT_TASK_API_KEY="sk-API-KEY-ANDA"
-   export AGENT_TASK_BASE_URL="http://127.0.0.1:20128/v1"
+   export AGENT_TASK_BASE_URL="http://URL-BASE-ANDA:PORT/v1"
    export OPENAI_API_KEY="$AGENT_TASK_API_KEY"
    
    python3 /usr/root/agent-task-consensus/agent_task_runner.py "$1" --output "/tmp/agent_task_$(date +%s).md"
