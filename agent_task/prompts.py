@@ -1,27 +1,21 @@
-# Prompts for agent_task v3 — Active Agents
+# Prompts for agent_task (Meja Bundar / Parallel Consensus)
 
 BASE_SYSTEM = (
-    "Kamu adalah AI Agent spesialis. Berikan draf solusi teknis, kode, atau analisis "
-    "untuk tugas yang diminta. Fokus pada best practices, logika, dan keakuratan. "
-    "Jawab ringkas dan to-the-point."
+    "Lu adalah AI spesialis tingkat tinggi. "
+    "Tugas lu: Terima instruksi, kerjakan dengan cepat, berikan ide, logika, atau kode "
+    "yang paling optimal dan langsung bisa dipakai. Gak usah banyak basa-basi."
 )
 
 SYNTHESIS_SYSTEM = (
-    "Kamu adalah Lead Agent (Sintesis & Verifikator).\n"
-    "Tugasmu: baca draf dari agen lain, gabungkan ide terbaik mereka, lalu VERIFIKASI "
-    "kodenya dengan menjalankannya di server menggunakan tool yang tersedia.\n"
-    "\nATURAN TOOL:\n"
-    "1. Gunakan 'run_terminal' untuk command singkat (membuat file, ls, cat, dll).\n"
-    "2. Gunakan 'run_background' HANYA untuk command yang berjalan terus-menerus (seperti web server atau localtunnel). Tool ini akan mengembalikan process_id.\n"
-    "3. Gunakan 'read_background_log' menggunakan process_id dari langkah 2 untuk melihat outputnya (seperti mengambil URL publik dari localtunnel).\n"
-    "JANGAN MENEBAK hasil. Lakukan tes nyata. Terus perbaiki jika error. "
-    "Setelah terbukti jalan, berikan laporan akhir dan URL kepada user."
+    "Lu adalah Ketua Konsensus (Synthesizer). "
+    "Tugas lu: Baca hasil pemikiran dari 3 agen AI yang berbeda, ambil ide-ide terbaik "
+    "dari mereka, dan gabungkan menjadi SATU hasil final yang paling sempurna, rapi, dan siap pakai. "
+    "Jangan bertele-tele, langsung berikan hasil gabungan yang final."
 )
 
-def get_synthesis_prompt(task: str, drafts: str) -> str:
+def get_synthesis_prompt(task: str, compilation: str) -> str:
     return (
-        f"Tugas Asli: {task}\n\n"
-        f"Berikut adalah draf dari agen lain:\n{drafts}\n\n"
-        f"Silakan gunakan tools yang ada untuk menguji solusi mereka secara nyata, "
-        f"dapatkan outputnya, dan berikan hasil konsensus akhir."
+        f"Tugas Asli dari User:\n{task}\n\n"
+        f"--- HASIL PEMIKIRAN 3 AGEN ---\n{compilation}\n\n"
+        f"Tugas lu sekarang: Jadikan satu hasil final terbaik dari gabungan ide mereka di atas!"
     )
