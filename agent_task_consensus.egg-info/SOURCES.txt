@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+setup.py
+agent_task/__init__.py
+agent_task/cli.py
+agent_task/core.py
+agent_task/prompts.py
+agent_task_consensus.egg-info/PKG-INFO
+agent_task_consensus.egg-info/SOURCES.txt
+agent_task_consensus.egg-info/dependency_links.txt
+agent_task_consensus.egg-info/entry_points.txt
+agent_task_consensus.egg-info/requires.txt
+agent_task_consensus.egg-info/top_level.txt
+tests/test_core.py

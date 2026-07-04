@@ -1,0 +1,2 @@
+[console_scripts]
+agent-task = agent_task.cli:main

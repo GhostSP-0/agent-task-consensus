@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-task-consensus"
+version = "0.1.0"
+description = "Sistem kolaborasi Multi-Agent (MoA) berbasis Python untuk konsensus jawaban optimal."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "GhostSP-0" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "openai>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/GhostSP-0/agent-task-consensus"
+
+[project.scripts]
+agent-task = "agent_task.cli:main"
+
+[tool.setuptools]
+packages = ["agent_task"]
